@@ -1,4 +1,5 @@
 import restart from 'vite-plugin-restart'
+import topLevelAwait from 'vite-plugin-top-level-await'
 
 export default {
     root: 'src/', // Sources files (typically where index.html is)
@@ -16,6 +17,12 @@ export default {
     },
     plugins:
     [
-        restart({ restart: [ '../static/**', ] }) // Restart server on static file change
+        restart({ restart: [ '../static/**', ] }), // Restart server on static file change
+        topLevelAwait({
+            // The export name of top-level await promise for each chunk module
+            promiseExportName: "__tla",
+            // The function to generate import names of top-level await promise in each chunk module
+            promiseImportName: i => `__tla_${i}`
+          })
     ],
 }

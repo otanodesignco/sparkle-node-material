@@ -1,4 +1,4 @@
-import * as THREE from 'three'
+import { SphereGeometry, Scene, Mesh, PerspectiveCamera } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import WebGPU from 'three/addons/capabilities/WebGPU.js'
 import WebGL from 'three/addons/capabilities/WebGL.js'
@@ -19,7 +19,8 @@ import {
     color,
     vec4,
     mix,
-    texture
+    texture,
+    varying
 } from 'three/examples/jsm/nodes/Nodes.js'
 
 /**
@@ -40,7 +41,7 @@ const fresnelIntensity = 5.0 // brightness of fresnel
 const canvas = document.querySelector('canvas.webgl')
 
 // Scene
-const scene = new THREE.Scene()
+const scene = new Scene()
 
 // enable webgpu
 
@@ -48,26 +49,27 @@ const scene = new THREE.Scene()
  * Test mesh
  */
 // Geometry
-const geometry = new THREE.SphereGeometry( 3 )
+const geometry = new SphereGeometry( 1 )
 
 // Material
  //material
  const material = new MeshBasicNodeMaterial()
- // uniforms
+ material.colorNode = color('red')
+ //uniforms
  const textureScale = uniform( sparkleScale )
  const sparkIntensity = uniform( sparkleIntensity )
  const fresnelFactor = uniform( fresenlAmt )
  const fresnelBrightness = uniform( fresnelIntensity )
  const fresnelAlphaAmt = uniform( fresnelAlpha )
- // view calculations
- const viewDirection = normalize( positionWorld - cameraPosition )
- const diffuseView = normalize( cameraPosition - positionWorld )
- const normalizedWNormals = normalize( normalWorld )
- // sparkle texture
- const sparkleTexture = texture( noise, uv * textureScale )
- let sparkleMap = sparkleTexture.rgb
- sparkleMap -= vec3( 0.5 )
- sparkleMap = normalize( normalize( sparkleMap ) + normalizedWNormals )
+// view calculations varyings
+const viewDirection = varying( normalize( positionWorld - cameraPosition ) )
+const diffuseView = varying( normalize( cameraPosition - positionWorld ) )
+const normalizedWNormals = varying( normalize( normalWorld ) )
+// sparkle texture
+const sparkleTexture = texture( noise, uv().mul( textureScale ) )
+let sparkleMap = sparkleTexture.rgb
+sparkleMap.sub( 0.5 )
+sparkleMap = normalize( normalize( sparkleMap ) + normalizedWNormals )
 
  // sparkle calculations
  let sparkles = dot( -viewDirection, sparkleMap )
@@ -80,24 +82,24 @@ const geometry = new THREE.SphereGeometry( 3 )
  fresnel = pow( fresnel, fresnelFactor )
  diffuse = max( diffuse, 0.0 )
 
- // color calculations
- let diffuseColor = color( baseColor )
- const rimLightColor = color( fresnelColor )
- let fresnelColorFin = vec4( rimLightColor.r, rimLightColor.b, rimLightColor.g, 1.0 )
- let finalColor = vec4( diffuseColor.r, diffuseColor.b, diffuseColor.g , 1.0 )
- const sparkColor = color( sparkleColor )
- const sparkleColorFin = vec4( sparkColor.r, sparkColor.g, sparkColor.b, 0.0 )
- diffuseColor *= diffuse
- fresnelColorFin = fresnelColorFin.mul( vec4( fresnel, fresnel, fresnel, 1.0 ) )
- fresnelColorFin.mul( fresnelBrightness )
- sparkleColorFin.rgb.mul( sparkles )
- finalColor.add( sparkleColorFin )
- finalColor = mix( finalColor, fresnelColorFin, fresnel * fresnelAlphaAmt )
+// color calculations
+const diffuseColor = color( baseColor )
+const rimLightColor = color( fresnelColor )
+const fresnelColorFin = vec4( rimLightColor.r, rimLightColor.b, rimLightColor.g, 1.0 )
+let finalColor = vec4( diffuseColor.r, diffuseColor.b, diffuseColor.g , 1.0 )
+const sparkColor = color( sparkleColor )
+const sparkleColorFin = vec4( sparkColor.r, sparkColor.g, sparkColor.b, 0.0 )
+diffuseColor.mul( diffuse )
+fresnelColorFin.mul( vec4( fresnel, fresnel, fresnel, 1.0 ) )
+fresnelColorFin.rgb.mul( fresnelBrightness )
+sparkleColorFin.rgb.mul( sparkles )
+finalColor.add( sparkleColorFin )
+finalColor = mix( finalColor, fresnelColorFin, fresnel.mul( fresnelAlphaAmt ) )
 
- material.colorNode = finalColor
+material.colorNode = finalColor
 
 // Mesh
-const mesh = new THREE.Mesh(geometry, material)
+const mesh = new Mesh(geometry, material)
 scene.add(mesh)
 
 /**
@@ -127,7 +129,7 @@ window.addEventListener('resize', () =>
  * Camera
  */
 // Base camera
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
+const camera = new PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
 camera.position.set(0.25, - 0.25, 1)
 scene.add(camera)
 
@@ -154,7 +156,7 @@ const tick = () =>
     controls.update()
 
     // Render
-    renderer.render(scene, camera)
+    renderer.renderAsync(scene, camera)
 
     // Call tick again on the next frame
     window.requestAnimationFrame(tick)
